@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/google/uuid"
 	"os"
 	"strings"
 )
@@ -13,13 +12,10 @@ func (cfg apiConfig) ensureAssetsDir() error {
 	return nil
 }
 
-func getAssetPath(videoID uuid.UUID, mediaType string) string {
-	// 1. derive extension from mediaType
+func getAssetPath(name string, mediaType string) string {
 	ext := getExtensionFromMediaType(mediaType)
-	filename := videoID.String() + ext
+	filename := name + ext
 	return "/assets/" + filename
-
-	// 2. build "/assets/<videoID>.<ext>"
 }
 
 func getExtensionFromMediaType(mediaType string) string {
@@ -33,4 +29,19 @@ func getExtensionFromMediaType(mediaType string) string {
 		return ".jpg"
 	}
 	return "." + ext
+}
+
+// Map URL path -> disk path
+func (cfg apiConfig) getAssetDiskPath(assetPath string) string {
+	// assetPath is "/assets/<file>", we want "./assets/<file>"
+	// so strip the leading "/assets" and prepend "./assets"
+	const prefix = "/assets"
+	if strings.HasPrefix(assetPath, prefix) {
+		return cfg.assetsRoot + assetPath[len(prefix):]
+	}
+	return cfg.assetsRoot + assetPath
+}
+
+func (cfg apiConfig) getAssetURL(assetPath string) string {
+	return "http://localhost:" + cfg.port + assetPath
 }
