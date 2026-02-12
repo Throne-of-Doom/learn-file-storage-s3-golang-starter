@@ -103,6 +103,19 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 
 	s3Key := make([]byte, 32)
 
+	outputFile, err := processVideoForFastStart(tempFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "error processing file", err)
+		return
+	}
+	file, err := os.Open(outputFile)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "error opening file", err)
+		return
+	}
+	defer file.Close()
+	defer os.Remove(outputFile)
+
 	_, err = rand.Read(s3Key)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "error creating filename", err)
@@ -115,15 +128,15 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	_, err = cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
 		Bucket:      aws.String(cfg.s3Bucket),
 		Key:         aws.String(key),
-		Body:        tempFile,
+		Body:        file,
 		ContentType: aws.String(mediaType),
 	})
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "error uploading file to s3", err)
+		respondWithError(w, http.StatusInternalServerError, fmt.Sprintf("error uploading file to s3: %v", err), err)
 		return
 	}
 
-	url := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", cfg.s3Bucket, cfg.s3Region, key)
+	url := fmt.Sprintf("%s/%s", cfg.s3CfDistribution, key)
 	metaData.VideoURL = &url
 
 	err = cfg.db.UpdateVideo(metaData)
